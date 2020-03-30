@@ -4,6 +4,7 @@ module Expect exposing
     , FloatingPointTolerance(..), within, notWithin
     , ok, err, equalLists, equalDicts, equalSets
     , pass, fail, onFail
+    , withViewer
     )
 
 {-| A library to create `Expectation`s, which describe a claim to be tested.
@@ -104,7 +105,7 @@ Another example is comparing values that are on either side of zero. `0.0001` is
 
 import Dict exposing (Dict)
 import Set exposing (Set)
-import Test.Expectation
+import Test.Expectation exposing (Expectation(..), Viewer)
 import Test.Internal as Internal
 import Test.Runner.Failure exposing (InvalidReason(..), Reason(..))
 
@@ -112,8 +113,8 @@ import Test.Runner.Failure exposing (InvalidReason(..), Reason(..))
 {-| The result of a single test run: either a [`pass`](#pass) or a
 [`fail`](#fail).
 -}
-type alias Expectation =
-    Test.Expectation.Expectation
+type alias Expectation flags model msg =
+    Test.Expectation.Expectation flags model msg
 
 
 {-| Passes if the arguments are equal.
@@ -142,7 +143,7 @@ which argument is which:
 Do not equate `Float` values; use [`within`](#within) instead.
 
 -}
-equal : a -> a -> Expectation
+equal : a -> a -> Expectation flags model msg
 equal =
     equateWith "Expect.equal" (==)
 
@@ -169,7 +170,7 @@ equal =
     -}
 
 -}
-notEqual : a -> a -> Expectation
+notEqual : a -> a -> Expectation flags model msg
 notEqual =
     equateWith "Expect.notEqual" (/=)
 
@@ -201,7 +202,7 @@ which argument is which:
 Do not equate `Float` values; use [`notWithin`](#notWithin) instead.
 
 -}
-lessThan : comparable -> comparable -> Expectation
+lessThan : comparable -> comparable -> Expectation flags model msg
 lessThan =
     compareWith "Expect.lessThan" (<)
 
@@ -230,7 +231,7 @@ which argument is which:
     -}
 
 -}
-atMost : comparable -> comparable -> Expectation
+atMost : comparable -> comparable -> Expectation flags model msg
 atMost =
     compareWith "Expect.atMost" (<=)
 
@@ -259,7 +260,7 @@ which argument is which:
     -}
 
 -}
-greaterThan : comparable -> comparable -> Expectation
+greaterThan : comparable -> comparable -> Expectation flags model msg
 greaterThan =
     compareWith "Expect.greaterThan" (>)
 
@@ -288,7 +289,7 @@ which argument is which:
     -}
 
 -}
-atLeast : comparable -> comparable -> Expectation
+atLeast : comparable -> comparable -> Expectation flags model msg
 atLeast =
     compareWith "Expect.atLeast" (>=)
 
@@ -313,6 +314,7 @@ minor inaccuracies introduced by floating point arithmetic.
     -- Fails because 0.1 + 0.2 == 0.30000000000000004 (0.1 is non-terminating in base 2)
     0.1 + 0.2 |> Expect.equal 0.3
 
+
     -- So instead write this test, which passes
     0.1 + 0.2 |> Expect.within (Absolute 0.000000001) 0.3
 
@@ -333,7 +335,7 @@ which argument is which:
     -}
 
 -}
-within : FloatingPointTolerance -> Float -> Float -> Expectation
+within : FloatingPointTolerance -> Float -> Float -> Expectation flags model msg
 within tolerance lower upper =
     nonNegativeToleranceError tolerance "within" <|
         compareWith ("Expect.within " ++ Internal.toString tolerance)
@@ -344,7 +346,7 @@ within tolerance lower upper =
 
 {-| Passes if (and only if) a call to `within` with the same arguments would have failed.
 -}
-notWithin : FloatingPointTolerance -> Float -> Float -> Expectation
+notWithin : FloatingPointTolerance -> Float -> Float -> Expectation flags model msg
 notWithin tolerance lower upper =
     nonNegativeToleranceError tolerance "notWithin" <|
         compareWith ("Expect.notWithin " ++ Internal.toString tolerance)
@@ -382,7 +384,7 @@ any `Err`.
     -}
 
 -}
-ok : Result a b -> Expectation
+ok : Result a b -> Expectation flags model msg
 ok result =
     case result of
         Ok _ ->
@@ -424,7 +426,7 @@ any `Err`.
     -}
 
 -}
-err : Result a b -> Expectation
+err : Result a b -> Expectation flags model msg
 err result =
     case result of
         Ok _ ->
@@ -464,7 +466,7 @@ differed at or which list was longer:
     -}
 
 -}
-equalLists : List a -> List a -> Expectation
+equalLists : List a -> List a -> Expectation flags model msg
 equalLists expected actual =
     if expected == actual then
         pass
@@ -503,7 +505,7 @@ or added to each dict:
     -}
 
 -}
-equalDicts : Dict comparable a -> Dict comparable a -> Expectation
+equalDicts : Dict comparable a -> Dict comparable a -> Expectation flags model msg
 equalDicts expected actual =
     if Dict.toList expected == Dict.toList actual then
         pass
@@ -553,7 +555,7 @@ or added to each set:
     -}
 
 -}
-equalSets : Set comparable -> Set comparable -> Expectation
+equalSets : Set comparable -> Set comparable -> Expectation flags model msg
 equalSets expected actual =
     if Set.toList expected == Set.toList actual then
         pass
@@ -588,7 +590,7 @@ equalSets expected actual =
                     Expect.fail err
 
 -}
-pass : Expectation
+pass : Expectation flags model msg
 pass =
     Test.Expectation.Pass
 
@@ -610,7 +612,7 @@ pass =
                     Expect.fail err
 
 -}
-fail : String -> Expectation
+fail : String -> Expectation flags model msg
 fail str =
     Test.Expectation.fail { description = str, reason = Custom }
 
@@ -622,7 +624,7 @@ fail str =
         |> Expect.onFail "thought those two strings would be the same"
 
 -}
-onFail : String -> Expectation -> Expectation
+onFail : String -> Expectation flags model msg -> Expectation flags model msg
 onFail str expectation =
     case expectation of
         Test.Expectation.Pass ->
@@ -630,6 +632,21 @@ onFail str expectation =
 
         Test.Expectation.Fail failure ->
             Test.Expectation.Fail { failure | description = str, reason = Custom }
+
+
+withViewer : Viewer flags2 model2 msg2 -> Expectation flags1 model1 msg1 -> Expectation flags2 model2 msg2
+withViewer viewer expectation =
+    case expectation of
+        Pass ->
+            Pass
+
+        Fail failure ->
+            Fail
+                { given = failure.given
+                , description = failure.description
+                , reason = failure.reason
+                , viewer = Just viewer
+                }
 
 
 {-| Passes if each of the given functions passes when applied to the subject.
@@ -663,7 +680,7 @@ which argument is which:
     -}
 
 -}
-all : List (subject -> Expectation) -> subject -> Expectation
+all : List (subject -> Expectation flags model msg) -> subject -> Expectation flags model msg
 all list query =
     if List.isEmpty list then
         Test.Expectation.fail
@@ -675,7 +692,7 @@ all list query =
         allHelp list query
 
 
-allHelp : List (subject -> Expectation) -> subject -> Expectation
+allHelp : List (subject -> Expectation flags model msg) -> subject -> Expectation flags model msg
 allHelp list query =
     case list of
         [] ->
@@ -694,7 +711,7 @@ allHelp list query =
 {---- Private helper functions ----}
 
 
-reportFailure : String -> String -> String -> Expectation
+reportFailure : String -> String -> String -> Expectation flags model msg
 reportFailure comparison expected actual =
     { description = comparison
 
@@ -704,7 +721,7 @@ reportFailure comparison expected actual =
         |> Test.Expectation.fail
 
 
-reportCollectionFailure : String -> a -> b -> List c -> List d -> Expectation
+reportCollectionFailure : String -> a -> b -> List c -> List d -> Expectation flags model msg
 reportCollectionFailure comparison expected actual missingKeys extraKeys =
     { description = comparison
     , reason =
@@ -720,7 +737,7 @@ reportCollectionFailure comparison expected actual missingKeys extraKeys =
 
 {-| String arg is label, e.g. "Expect.equal".
 -}
-equateWith : String -> (a -> b -> Bool) -> b -> a -> Expectation
+equateWith : String -> (a -> b -> Bool) -> b -> a -> Expectation flags model msg
 equateWith reason comparison b a =
     let
         isJust x =
@@ -751,12 +768,12 @@ equateWith reason comparison b a =
         testWith Equality reason comparison b a
 
 
-compareWith : String -> (a -> b -> Bool) -> b -> a -> Expectation
+compareWith : String -> (a -> b -> Bool) -> b -> a -> Expectation flags model msg
 compareWith =
     testWith Comparison
 
 
-testWith : (String -> String -> Reason) -> String -> (a -> b -> Bool) -> b -> a -> Expectation
+testWith : (String -> String -> Reason) -> String -> (a -> b -> Bool) -> b -> a -> Expectation flags model msg
 testWith makeReason label runTest expected actual =
     if runTest actual expected then
         pass
@@ -798,7 +815,7 @@ relative tolerance =
             0
 
 
-nonNegativeToleranceError : FloatingPointTolerance -> String -> Expectation -> Expectation
+nonNegativeToleranceError : FloatingPointTolerance -> String -> Expectation flags model msg -> Expectation flags model msg
 nonNegativeToleranceError tolerance name result =
     if absolute tolerance < 0 && relative tolerance < 0 then
         Test.Expectation.fail { description = "Expect." ++ name ++ " was given negative absolute and relative tolerances", reason = Custom }

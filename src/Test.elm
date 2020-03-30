@@ -34,8 +34,8 @@ or more [`Expectation`](../Expect#Expectation)s.
 See [`test`](#test) and [`fuzz`](#fuzz) for some ways to create a `Test`.
 
 -}
-type alias Test =
-    Internal.Test
+type alias Test flags model msg =
+    Internal.Test flags model msg
 
 
 {-| Run each of the given tests.
@@ -43,7 +43,7 @@ type alias Test =
     concat [ testDecoder, testSorting ]
 
 -}
-concat : List Test -> Test
+concat : List (Test flags model msg) -> Test flags model msg
 concat tests =
     if List.isEmpty tests then
         Internal.failNow
@@ -87,7 +87,7 @@ Passing an empty list will result in a failing test, because you either made a
 mistake or are creating a placeholder.
 
 -}
-describe : String -> List Test -> Test
+describe : String -> List (Test flags model msg) -> Test flags model msg
 describe untrimmedDesc tests =
     let
         desc =
@@ -137,7 +137,7 @@ describe untrimmedDesc tests =
                 |> Expect.equal 0
 
 -}
-test : String -> (() -> Expectation) -> Test
+test : String -> (() -> Expectation flags model msg) -> Test flags model msg
 test untrimmedDesc thunk =
     let
         desc =
@@ -170,7 +170,7 @@ This functionality is similar to "pending" tests in other frameworks, except
 that a TODO test is considered failing but a pending test often is not.
 
 -}
-todo : String -> Test
+todo : String -> Test flags model msg
 todo desc =
     Internal.failNow
         { description = desc
@@ -214,7 +214,7 @@ an `only` inside a `skip`, it will also get skipped.
         ]
 
 -}
-only : Test -> Test
+only : Test flags model msg -> Test flags model msg
 only =
     Internal.Only
 
@@ -250,7 +250,7 @@ an `only` inside a `skip`, it will also get skipped.
         ]
 
 -}
-skip : Test -> Test
+skip : Test flags model msg -> Test flags model msg
 skip =
     Internal.Skipped
 
@@ -301,7 +301,7 @@ for example like this:
                     |> Expect.equal (List.member target nums)
 
 -}
-fuzzWith : FuzzOptions -> Fuzzer a -> String -> (a -> Expectation) -> Test
+fuzzWith : FuzzOptions -> Fuzzer a -> String -> (a -> Expectation flags model msg) -> Test flags model msg
 fuzzWith options fuzzer desc getTest =
     if options.runs < 1 then
         Internal.failNow
@@ -313,7 +313,7 @@ fuzzWith options fuzzer desc getTest =
         fuzzWithHelp options (fuzz fuzzer desc getTest)
 
 
-fuzzWithHelp : FuzzOptions -> Test -> Test
+fuzzWithHelp : FuzzOptions -> Test flags model msg -> Test flags model msg
 fuzzWithHelp options aTest =
     case aTest of
         Internal.UnitTest _ ->
@@ -368,8 +368,8 @@ You may find them elsewhere called [property-based tests](http://blog.jessitron.
 fuzz :
     Fuzzer a
     -> String
-    -> (a -> Expectation)
-    -> Test
+    -> (a -> Expectation flags model msg)
+    -> Test flags model msg
 fuzz =
     Test.Fuzz.fuzzTest
 
@@ -394,8 +394,8 @@ fuzz2 :
     Fuzzer a
     -> Fuzzer b
     -> String
-    -> (a -> b -> Expectation)
-    -> Test
+    -> (a -> b -> Expectation flags model msg)
+    -> Test flags model msg
 fuzz2 fuzzA fuzzB desc =
     let
         fuzzer =
@@ -414,8 +414,8 @@ fuzz3 :
     -> Fuzzer b
     -> Fuzzer c
     -> String
-    -> (a -> b -> c -> Expectation)
-    -> Test
+    -> (a -> b -> c -> Expectation flags model msg)
+    -> Test flags model msg
 fuzz3 fuzzA fuzzB fuzzC desc =
     let
         fuzzer =

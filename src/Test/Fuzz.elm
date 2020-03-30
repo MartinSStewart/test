@@ -13,7 +13,7 @@ import Test.Runner.Failure exposing (InvalidReason(..), Reason(..))
 
 {-| Reject always-failing tests because of bad names or invalid fuzzers.
 -}
-fuzzTest : Fuzzer a -> String -> (a -> Expectation) -> Test
+fuzzTest : Fuzzer a -> String -> (a -> Expectation flags model msg) -> Test flags model msg
 fuzzTest fuzzer untrimmedDesc getExpectation =
     let
         desc =
@@ -37,7 +37,7 @@ fuzzTest fuzzer untrimmedDesc getExpectation =
 
 {-| Knowing that the fuzz test isn't obviously invalid, run the test and package up the results.
 -}
-validatedFuzzTest : ValidFuzzer a -> (a -> Expectation) -> Test
+validatedFuzzTest : ValidFuzzer a -> (a -> Expectation flags model msg) -> Test flags model msg
 validatedFuzzTest fuzzer getExpectation =
     FuzzTest
         (\seed runs ->
@@ -50,13 +50,13 @@ validatedFuzzTest fuzzer getExpectation =
         )
 
 
-type alias Failures =
-    Dict String Expectation
+type alias Failures flags model msg =
+    Dict String (Expectation flags model msg)
 
 
 {-| Runs the specified number of fuzz tests and returns a dictionary of simplified failures.
 -}
-runAllFuzzIterations : ValidFuzzer a -> (a -> Expectation) -> Random.Seed -> Int -> Failures
+runAllFuzzIterations : ValidFuzzer a -> (a -> Expectation flags model msg) -> Random.Seed -> Int -> Failures flags model msg
 runAllFuzzIterations fuzzer getExpectation initialSeed totalRuns =
     runOneFuzzIteration fuzzer getExpectation
         |> foldUntil totalRuns ( Dict.empty, initialSeed )
@@ -66,7 +66,7 @@ runAllFuzzIterations fuzzer getExpectation initialSeed totalRuns =
 
 {-| Generate a fuzzed value, test it, and record the simplified test failure if any.
 -}
-runOneFuzzIteration : ValidFuzzer a -> (a -> Expectation) -> ( Failures, Random.Seed ) -> ( Failures, Random.Seed )
+runOneFuzzIteration : ValidFuzzer a -> (a -> Expectation flags model msg) -> ( Failures flags model msg, Random.Seed ) -> ( Failures flags model msg, Random.Seed )
 runOneFuzzIteration fuzzer getExpectation ( failures, currentSeed ) =
     let
         ( rosetree, nextSeed ) =
@@ -99,7 +99,7 @@ foldUntil remainingRuns initialState f =
 
 {-| Given a rosetree -- a root to test and branches of simplifications -- run the test and perform simplification if it fails.
 -}
-testGeneratedValue : RoseTree a -> (a -> Expectation) -> Maybe ( String, Expectation )
+testGeneratedValue : RoseTree a -> (a -> Expectation flags model msg) -> Maybe ( String, Expectation flags model msg )
 testGeneratedValue rosetree getExpectation =
     case getExpectation (RoseTree.root rosetree) of
         Pass ->
@@ -111,7 +111,7 @@ testGeneratedValue rosetree getExpectation =
 
 {-| Knowing that the rosetree's root already failed, finds the key and value of the simplest failure.
 -}
-findSimplestFailure : RoseTree a -> (a -> Expectation) -> Expectation -> ( String, Expectation )
+findSimplestFailure : RoseTree a -> (a -> Expectation flags model msg) -> Expectation flags model msg -> ( String, Expectation flags model msg )
 findSimplestFailure (Rose failingValue branches) getExpectation oldExpectation =
     case Lazy.List.headAndTail branches of
         Just ( (Rose possiblyFailingValue _) as firstChild, otherChildren ) ->
@@ -131,6 +131,6 @@ findSimplestFailure (Rose failingValue branches) getExpectation oldExpectation =
             ( Internal.toString failingValue, oldExpectation )
 
 
-formatExpectation : ( String, Expectation ) -> Expectation
+formatExpectation : ( String, Expectation flags model msg ) -> Expectation flags model msg
 formatExpectation ( given, expectation ) =
     Test.Expectation.withGiven given expectation

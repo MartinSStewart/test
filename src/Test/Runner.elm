@@ -36,7 +36,6 @@ These functions give you the ability to run fuzzers separate of running fuzz tes
 
 import Bitwise
 import Char
-import Elm.Kernel.Test
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import Lazy.List as LazyList exposing (LazyList)
@@ -44,7 +43,7 @@ import Random
 import RoseTree exposing (RoseTree(..))
 import String
 import Test exposing (Test)
-import Test.Expectation
+import Test.Expectation exposing (Viewer)
 import Test.Internal as Internal
 import Test.Runner.Failure exposing (Reason(..))
 
@@ -52,15 +51,15 @@ import Test.Runner.Failure exposing (Reason(..))
 {-| An unevaluated test. Run it with [`run`](#run) to evaluate it into a
 list of `Expectation`s.
 -}
-type Runnable
-    = Thunk (() -> List Expectation)
+type Runnable flags model msg
+    = Thunk (() -> List (Expectation flags model msg))
 
 
 {-| A function which, when evaluated, produces a list of expectations. Also a
 list of labels which apply to this outcome.
 -}
-type alias Runner =
-    { run : () -> List Expectation
+type alias Runner flags model msg =
+    { run : () -> List (Expectation flags model msg)
     , labels : List String
     }
 
@@ -71,10 +70,10 @@ type alias Runner =
   - The hierarchy of description strings that describe the results
 
 -}
-type RunnableTree
-    = Runnable Runnable
-    | Labeled String RunnableTree
-    | Batch (List RunnableTree)
+type RunnableTree flags model msg
+    = Runnable (Runnable flags model msg)
+    | Labeled String (RunnableTree flags model msg)
+    | Batch (List (RunnableTree flags model msg))
 
 
 {-| Convert a `Test` into `SeededRunners`.
@@ -86,7 +85,7 @@ random 32-bit integer to `Random.initialSeed`. You can obtain such an integer by
 your Elm code; it's easy and makes your tests reproducible.
 
 -}
-fromTest : Int -> Random.Seed -> Test -> SeededRunners
+fromTest : Int -> Random.Seed -> Test flags model msg -> SeededRunners flags model msg
 fromTest runs seed test =
     if runs < 1 then
         Invalid ("Test runner run count must be at least 1, not " ++ String.fromInt runs)
@@ -113,12 +112,12 @@ fromTest runs seed test =
                 |> Only
 
 
-countAllRunnables : List RunnableTree -> Int
+countAllRunnables : List (RunnableTree flags model msg) -> Int
 countAllRunnables =
     List.foldl (countRunnables >> (+)) 0
 
 
-countRunnables : RunnableTree -> Int
+countRunnables : RunnableTree flags model msg -> Int
 countRunnables runnable =
     case runnable of
         Runnable _ ->
@@ -131,7 +130,7 @@ countRunnables runnable =
             countAllRunnables runners
 
 
-run : Runnable -> List Expectation
+run : Runnable flags model msg -> List (Expectation flags model msg)
 run (Thunk fn) =
     case runThunk fn of
         Ok tests ->
@@ -146,12 +145,12 @@ runThunk =
     Elm.Kernel.Test.runThunk
 
 
-fromRunnableTree : RunnableTree -> List Runner
+fromRunnableTree : RunnableTree flags model msg -> List (Runner flags model msg)
 fromRunnableTree =
     fromRunnableTreeHelp []
 
 
-fromRunnableTreeHelp : List String -> RunnableTree -> List Runner
+fromRunnableTreeHelp : List String -> RunnableTree flags model msg -> List (Runner flags model msg)
 fromRunnableTreeHelp labels runner =
     case runner of
         Runnable runnable ->
@@ -167,11 +166,11 @@ fromRunnableTreeHelp labels runner =
             List.concatMap (fromRunnableTreeHelp labels) runners
 
 
-type alias Distribution =
+type alias Distribution flags model msg =
     { seed : Random.Seed
-    , only : List RunnableTree
-    , all : List RunnableTree
-    , skipped : List RunnableTree
+    , only : List (RunnableTree flags model msg)
+    , all : List (RunnableTree flags model msg)
+    , skipped : List (RunnableTree flags model msg)
     }
 
 
@@ -184,14 +183,14 @@ either invalid or are ready to run. Seeded runners include some metadata:
   - `Plain` runners are ready to run, and have none of these issues.
 
 -}
-type SeededRunners
-    = Plain (List Runner)
-    | Only (List Runner)
-    | Skipping (List Runner)
+type SeededRunners flags model msg
+    = Plain (List (Runner flags model msg))
+    | Only (List (Runner flags model msg))
+    | Skipping (List (Runner flags model msg))
     | Invalid String
 
 
-emptyDistribution : Random.Seed -> Distribution
+emptyDistribution : Random.Seed -> Distribution flags model msg
 emptyDistribution seed =
     { seed = seed
     , all = []
@@ -226,12 +225,12 @@ Some design notes:
     which would presumably require some absurdly deeply nested `describe` calls.
 
 -}
-distributeSeeds : Int -> Random.Seed -> Test -> Distribution
+distributeSeeds : Int -> Random.Seed -> Test flags model msg -> Distribution flags model msg
 distributeSeeds =
     distributeSeedsHelp False
 
 
-distributeSeedsHelp : Bool -> Int -> Random.Seed -> Test -> Distribution
+distributeSeedsHelp : Bool -> Int -> Random.Seed -> Test flags model msg -> Distribution flags model msg
 distributeSeedsHelp hashed runs seed test =
     case test of
         Internal.UnitTest aRun ->
@@ -330,7 +329,7 @@ distributeSeedsHelp hashed runs seed test =
             List.foldl (batchDistribute hashed runs) (emptyDistribution seed) tests
 
 
-batchDistribute : Bool -> Int -> Test -> Distribution -> Distribution
+batchDistribute : Bool -> Int -> Test flags model msg -> Distribution flags model msg -> Distribution flags model msg
 batchDistribute hashed runs test prev =
     let
         next =
@@ -381,12 +380,13 @@ For example:
 
 -}
 getFailureReason :
-    Expectation
+    Expectation flags model msg
     ->
         Maybe
             { given : Maybe String
             , description : String
             , reason : Reason
+            , viewer : Maybe (Viewer flags model msg)
             }
 getFailureReason expectation =
     case expectation of
@@ -400,7 +400,7 @@ getFailureReason expectation =
 {-| Determine if an expectation was created by a call to `Test.todo`. Runners
 may treat these tests differently in their output.
 -}
-isTodo : Expectation -> Bool
+isTodo : Expectation flags model msg -> Bool
 isTodo expectation =
     case expectation of
         Test.Expectation.Pass ->

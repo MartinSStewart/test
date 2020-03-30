@@ -1,30 +1,29 @@
 module Test.Internal exposing (Test(..), blankDescriptionFailure, duplicatedName, failNow, toString)
 
-import Elm.Kernel.Debug
 import Random exposing (Generator)
 import Set exposing (Set)
 import Test.Expectation exposing (Expectation(..))
 import Test.Runner.Failure exposing (InvalidReason(..), Reason(..))
 
 
-type Test
-    = UnitTest (() -> List Expectation)
-    | FuzzTest (Random.Seed -> Int -> List Expectation)
-    | Labeled String Test
-    | Skipped Test
-    | Only Test
-    | Batch (List Test)
+type Test flags model msg
+    = UnitTest (() -> List (Expectation flags model msg))
+    | FuzzTest (Random.Seed -> Int -> List (Expectation flags model msg))
+    | Labeled String (Test flags model msg)
+    | Skipped (Test flags model msg)
+    | Only (Test flags model msg)
+    | Batch (List (Test flags model msg))
 
 
 {-| Create a test that always fails for the given reason and description.
 -}
-failNow : { description : String, reason : Reason } -> Test
+failNow : { description : String, reason : Reason } -> Test flags model msg
 failNow record =
     UnitTest
         (\() -> [ Test.Expectation.fail record ])
 
 
-blankDescriptionFailure : Test
+blankDescriptionFailure : Test flags model msg
 blankDescriptionFailure =
     failNow
         { description = "This test has a blank description. Let's give it a useful one!"
@@ -32,10 +31,10 @@ blankDescriptionFailure =
         }
 
 
-duplicatedName : List Test -> Result String (Set String)
+duplicatedName : List (Test flags model msg) -> Result String (Set String)
 duplicatedName =
     let
-        names : Test -> List String
+        names : Test flags model msg -> List String
         names test =
             case test of
                 Labeled str _ ->
