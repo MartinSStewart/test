@@ -6,7 +6,7 @@ import Fuzz.Internal exposing (ValidFuzzer)
 import Lazy.List
 import Random exposing (Generator)
 import RoseTree exposing (RoseTree(..))
-import Test.Expectation exposing (Expectation(..))
+import Test.Expectation exposing (Expectation(..), TestResult(..))
 import Test.Internal as Internal exposing (Test(..), blankDescriptionFailure, failNow)
 import Test.Runner.Failure exposing (InvalidReason(..), Reason(..))
 
@@ -43,7 +43,7 @@ validatedFuzzTest fuzzer getExpectation =
         (\seed runs ->
             case runAllFuzzIterations fuzzer getExpectation seed runs |> Dict.toList of
                 [] ->
-                    [ Pass ]
+                    [ Expectation { viewer = Test.Expectation.textViewer, result = Pass } ]
 
                 failures ->
                     List.map formatExpectation failures
@@ -101,7 +101,7 @@ foldUntil remainingRuns initialState f =
 -}
 testGeneratedValue : RoseTree a -> (a -> Expectation) -> Maybe ( String, Expectation )
 testGeneratedValue rosetree getExpectation =
-    case getExpectation (RoseTree.root rosetree) of
+    case getExpectation (RoseTree.root rosetree) |> (\(Expectation e) -> e.result) of
         Pass ->
             Nothing
 

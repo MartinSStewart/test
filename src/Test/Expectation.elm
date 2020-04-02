@@ -1,9 +1,27 @@
-module Test.Expectation exposing (Expectation(..), fail, withGiven)
+module Test.Expectation exposing (Expectation(..), TestResult(..), fail, textViewer, withGiven)
 
+import Element exposing (Element)
 import Test.Runner.Failure exposing (Reason)
 
 
 type Expectation
+    = Expectation
+        { viewer : TestResult -> Element Never
+        , result : TestResult
+        }
+
+
+textViewer : TestResult -> Element msg
+textViewer result =
+    case result of
+        Pass ->
+            Element.text "PASSED"
+
+        Fail failure ->
+            Element.text failure.description
+
+
+type TestResult
     = Pass
     | Fail { given : Maybe String, description : String, reason : Reason }
 
@@ -12,16 +30,19 @@ type Expectation
 -}
 fail : { description : String, reason : Reason } -> Expectation
 fail { description, reason } =
-    Fail { given = Nothing, description = description, reason = reason }
+    Expectation
+        { viewer = textViewer
+        , result = Fail { given = Nothing, description = description, reason = reason }
+        }
 
 
 {-| Set the given (fuzz test input) of an expectation.
 -}
 withGiven : String -> Expectation -> Expectation
-withGiven newGiven expectation =
-    case expectation of
+withGiven newGiven (Expectation expectation) =
+    case expectation.result of
         Fail failure ->
-            Fail { failure | given = Just newGiven }
+            Expectation { viewer = expectation.viewer, result = Fail { failure | given = Just newGiven } }
 
         Pass ->
-            expectation
+            Expectation expectation
