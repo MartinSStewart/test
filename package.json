@@ -11,5 +11,12 @@
     "elm": "^0.19.0-bugfix2",
     "elm-format": "^0.8.1"
   },
-  "dependencies": {}
+  "dependencies": {
+    "elm-format": "^0.8.3"
+  },
+  "main": "index.js",
+  "repository": {
+    "url": "https://github.com/MartinSStewart/test.git",
+    "type": "git"
+  }
 }

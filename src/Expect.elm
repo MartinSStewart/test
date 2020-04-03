@@ -4,6 +4,7 @@ module Expect exposing
     , FloatingPointTolerance(..), within, notWithin
     , ok, err, equalLists, equalDicts, equalSets
     , pass, fail, onFail
+    , TestResult, withViewer
     )
 
 {-| A library to create `Expectation`s, which describe a claim to be tested.
@@ -103,6 +104,7 @@ Another example is comparing values that are on either side of zero. `0.0001` is
 -}
 
 import Dict exposing (Dict)
+import Element exposing (Element)
 import Set exposing (Set)
 import Test.Expectation
 import Test.Internal as Internal
@@ -590,7 +592,7 @@ equalSets expected actual =
 -}
 pass : Expectation
 pass =
-    Test.Expectation.Pass
+    Test.Expectation.Expectation { viewer = Test.Expectation.textViewer, result = Test.Expectation.Pass }
 
 
 {-| Fails with the given message.
@@ -624,12 +626,27 @@ fail str =
 -}
 onFail : String -> Expectation -> Expectation
 onFail str expectation =
-    case expectation of
+    case Test.Expectation.result expectation of
         Test.Expectation.Pass ->
             expectation
 
         Test.Expectation.Fail failure ->
-            Test.Expectation.Fail { failure | description = str, reason = Custom }
+            Test.Expectation.Expectation
+                { viewer = Test.Expectation.textViewer
+                , result = Test.Expectation.Fail { failure | description = str, reason = Custom }
+                }
+
+
+type alias TestResult =
+    Test.Expectation.TestResult
+
+
+withViewer : (TestResult -> Element Never) -> Expectation -> Expectation
+withViewer viewer (Test.Expectation.Expectation expectation) =
+    Test.Expectation.Expectation
+        { viewer = viewer
+        , result = expectation.result
+        }
 
 
 {-| Passes if each of the given functions passes when applied to the subject.
@@ -682,11 +699,15 @@ allHelp list query =
             pass
 
         check :: rest ->
-            case check query of
+            let
+                outcome =
+                    check query
+            in
+            case Test.Expectation.result outcome of
                 Test.Expectation.Pass ->
                     allHelp rest query
 
-                outcome ->
+                Test.Expectation.Fail _ ->
                     outcome
 
 

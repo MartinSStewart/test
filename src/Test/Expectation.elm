@@ -1,4 +1,4 @@
-module Test.Expectation exposing (Expectation(..), TestResult(..), fail, textViewer, withGiven)
+module Test.Expectation exposing (Expectation(..), TestResult(..), fail, result, textViewer, withGiven)
 
 import Element exposing (Element)
 import Test.Runner.Failure exposing (Reason)
@@ -11,9 +11,14 @@ type Expectation
         }
 
 
+result : Expectation -> TestResult
+result (Expectation expectation) =
+    expectation.result
+
+
 textViewer : TestResult -> Element msg
-textViewer result =
-    case result of
+textViewer result_ =
+    case result_ of
         Pass ->
             Element.text "PASSED"
 

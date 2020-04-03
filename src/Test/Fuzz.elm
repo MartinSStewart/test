@@ -101,11 +101,15 @@ foldUntil remainingRuns initialState f =
 -}
 testGeneratedValue : RoseTree a -> (a -> Expectation) -> Maybe ( String, Expectation )
 testGeneratedValue rosetree getExpectation =
-    case getExpectation (RoseTree.root rosetree) |> (\(Expectation e) -> e.result) of
+    let
+        failedExpectation =
+            getExpectation (RoseTree.root rosetree)
+    in
+    case Test.Expectation.result failedExpectation of
         Pass ->
             Nothing
 
-        failedExpectation ->
+        Fail _ ->
             Just <| findSimplestFailure rosetree getExpectation failedExpectation
 
 
@@ -115,7 +119,11 @@ findSimplestFailure : RoseTree a -> (a -> Expectation) -> Expectation -> ( Strin
 findSimplestFailure (Rose failingValue branches) getExpectation oldExpectation =
     case Lazy.List.headAndTail branches of
         Just ( (Rose possiblyFailingValue _) as firstChild, otherChildren ) ->
-            case getExpectation possiblyFailingValue of
+            let
+                newExpectation =
+                    getExpectation possiblyFailingValue
+            in
+            case Test.Expectation.result newExpectation of
                 -- recurse "horizontally" on other simplifications of the last known failing value
                 -- discard simplifications of the passing value (the _)
                 Pass ->
@@ -123,7 +131,7 @@ findSimplestFailure (Rose failingValue branches) getExpectation oldExpectation =
 
                 -- recurse downward on simplifications of the newly-found failing value
                 -- discard simplifications of the previous failing value (otherChildren)
-                newExpectation ->
+                Fail _ ->
                     findSimplestFailure firstChild getExpectation newExpectation
 
         -- base case: we cannot simplify any more

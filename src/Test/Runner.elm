@@ -389,7 +389,7 @@ getFailureReason :
             , reason : Reason
             }
 getFailureReason expectation =
-    case expectation of
+    case Test.Expectation.result expectation of
         Test.Expectation.Pass ->
             Nothing
 
@@ -402,7 +402,7 @@ may treat these tests differently in their output.
 -}
 isTodo : Expectation -> Bool
 isTodo expectation =
-    case expectation of
+    case Test.Expectation.result expectation of
         Test.Expectation.Pass ->
             False
 
